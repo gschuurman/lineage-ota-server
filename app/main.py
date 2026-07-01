@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import json
 import hashlib
+import hmac
 import os
 import re
 import tempfile
@@ -45,8 +46,9 @@ import time
 from pathlib import Path
 from typing import Any
 
-from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 
 BUILDS_DIR = Path(os.environ.get("BUILDS_DIR", "/builds")).resolve()
@@ -236,12 +238,17 @@ def _enforce_retention(device: str, retain: int) -> None:
     _save_hash_cache()
 
 
-def _check_upload_auth(authorization: str | None = Header(default=None)) -> None:
+_bearer_scheme = HTTPBearer()
+
+
+def _check_upload_auth(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+) -> None:
     if not UPLOAD_TOKEN:
         raise HTTPException(
             status_code=503, detail="uploads disabled: UPLOAD_TOKEN not configured"
         )
-    if authorization != f"Bearer {UPLOAD_TOKEN}":
+    if not hmac.compare_digest(credentials.credentials, UPLOAD_TOKEN):
         raise HTTPException(status_code=401, detail="unauthorized")
 
 
