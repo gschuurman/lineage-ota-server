@@ -1,0 +1,6 @@
+apiVersion: v2
+name: lineage-ota-server
+description: Self-hosted OTA metadata/download server for the LineageOS Updater app
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

@@ -1,0 +1,69 @@
+image:
+  repository: ghcr.io/gschuurman/lineage-ota-server
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 1
+
+# Public base URL the service is reachable at. Used to build the "url"
+# field of download links returned by the builds API. Must be HTTPS —
+# the Updater app on-device rejects non-HTTPS server URLs.
+baseUrl: "https://updates.schuurman-it.com"
+
+# Number of builds kept per device; older ones are deleted on each upload.
+retainBuilds: 5
+
+# Bearer token required on POST /api/v2/devices/{device}/builds (upload).
+# Leave both empty to generate a random token on first install (read back
+# with: kubectl get secret <release>-lineage-ota-server -o jsonpath='{.data.upload-token}' | base64 -d
+uploadToken: ""
+existingSecret: ""
+existingSecretKey: "upload-token"
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    # OTA zips are multi-GB; disable nginx's default 1m body size cap and
+    # bump read timeout so large uploads from the build server don't get cut off.
+    nginx.ingress.kubernetes.io/proxy-body-size: "0"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "1800"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "1800"
+  host: updates.schuurman-it.com
+  tls:
+    enabled: true
+    secretName: lineage-ota-server-tls
+
+persistence:
+  enabled: true
+  # Use an existing PVC instead of provisioning one, e.g. if builds live on
+  # an NFS/Longhorn volume you already manage.
+  existingClaim: ""
+  storageClassName: ""
+  accessMode: ReadWriteOnce
+  size: 200Gi
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    memory: 512Mi
+
+podSecurityContext:
+  fsGroup: 10001
+
+securityContext:
+  runAsUser: 10001
+  runAsNonRoot: true
+  allowPrivilegeEscalation: false
+
+nodeSelector: {}
+tolerations: []
+affinity: {}
